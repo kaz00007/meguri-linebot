@@ -2,15 +2,6 @@ const express = require('express');
 const { middleware, messagingApi } = require('@line/bot-sdk');
 const Anthropic = require('@anthropic-ai/sdk');
 
-// ─── 設定チェック ────────────────────────────────────────────────
-const REQUIRED_ENV = ['LINE_CHANNEL_SECRET', 'LINE_CHANNEL_ACCESS_TOKEN', 'ANTHROPIC_API_KEY'];
-for (const key of REQUIRED_ENV) {
-  if (!process.env[key]) {
-    console.error(`ERROR: 環境変数 ${key} が設定されていません`);
-    process.exit(1);
-  }
-}
-
 // ─── クライアント初期化 ──────────────────────────────────────────
 const lineConfig = {
   channelSecret: process.env.LINE_CHANNEL_SECRET,
