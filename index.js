@@ -143,6 +143,7 @@ app.get('/webhook', (_req, res) => {
 
 // LINE Webhookイベント受信
 app.post('/webhook', (req, res, next) => {
+  console.log(`[DEBUG] webhook受信 LINE_CHANNEL_SECRET: ${process.env.LINE_CHANNEL_SECRET}`);
   middleware(getLineConfig())(req, res, next);
 }, (req, res) => {
   res.sendStatus(200); // LINEへ即座に200を返す（タイムアウト防止）
@@ -155,4 +156,7 @@ app.listen(PORT, () => {
   console.log(`   モデル: ${MODEL}`);
   console.log(`   ヘルスチェック: http://localhost:${PORT}/health`);
   console.log(`   Webhook URL: http://localhost:${PORT}/webhook`);
+  console.log(`[DEBUG] LINE_CHANNEL_SECRET: ${process.env.LINE_CHANNEL_SECRET}`);
+  console.log(`[DEBUG] LINE_CHANNEL_ACCESS_TOKEN: ${process.env.LINE_CHANNEL_ACCESS_TOKEN}`);
+  console.log(`[DEBUG] ANTHROPIC_API_KEY: ${process.env.ANTHROPIC_API_KEY}`);
 });
