@@ -1,5 +1,3 @@
-require('dotenv').config();
-
 const express = require('express');
 const { middleware, messagingApi } = require('@line/bot-sdk');
 const Anthropic = require('@anthropic-ai/sdk');
