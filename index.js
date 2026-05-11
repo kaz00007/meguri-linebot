@@ -2,24 +2,10 @@ const express = require('express');
 const { middleware, messagingApi } = require('@line/bot-sdk');
 const Anthropic = require('@anthropic-ai/sdk');
 
-// ─── クライアント初期化 ──────────────────────────────────────────
-const lineConfig = {
-  channelSecret: process.env.LINE_CHANNEL_SECRET || '',
-  channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
-};
-
-const lineClient = new messagingApi.MessagingApiClient({
-  channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
-});
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY || '',
-});
-
 // ─── 定数 ────────────────────────────────────────────────────────
 const MODEL = 'claude-sonnet-4-5';
 const MAX_TOKENS = 1024;
-const MAX_HISTORY_PAIRS = 8; // ユーザー・アシスタントのペア数上限
+const MAX_HISTORY_PAIRS = 8;
 
 const SYSTEM_PROMPT = `あなたはMeguriの健康アドバイザーです。陰陽五行・中医学の観点から、ユーザーの体質・季節に合わせた食事・養生アドバイスを提供します。親しみやすく簡潔に、LINEチャット向けの返答をしてください。
 
@@ -32,7 +18,27 @@ const SYSTEM_PROMPT = `あなたはMeguriの健康アドバイザーです。陰
 
 const RESET_KEYWORDS = ['リセット', 'クリア', 'はじめから', 'reset', 'clear'];
 
-// ─── 会話履歴管理（ユーザーごとにインメモリで保持）───────────────
+// ─── 動的クライアント生成（リクエストごとにprocess.envから読み込む）──
+function getLineConfig() {
+  return {
+    channelSecret: process.env.LINE_CHANNEL_SECRET || '',
+    channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
+  };
+}
+
+function getLineClient() {
+  return new messagingApi.MessagingApiClient({
+    channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
+  });
+}
+
+function getAnthropic() {
+  return new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY || '',
+  });
+}
+
+// ─── 会話履歴管理 ────────────────────────────────────────────────
 const histories = new Map();
 
 function getHistory(userId) {
@@ -43,7 +49,6 @@ function getHistory(userId) {
 function pushHistory(userId, role, content) {
   const history = getHistory(userId);
   history.push({ role, content });
-  // 上限を超えたら古いペアを削除
   while (history.length > MAX_HISTORY_PAIRS * 2) {
     history.splice(0, 2);
   }
@@ -57,6 +62,7 @@ function clearHistory(userId) {
 async function askClaude(userId, userText) {
   pushHistory(userId, 'user', userText);
 
+  const anthropic = getAnthropic();
   const response = await anthropic.messages.create({
     model: MODEL,
     max_tokens: MAX_TOKENS,
@@ -71,8 +77,9 @@ async function askClaude(userId, userText) {
 
 // ─── LINEイベント処理 ────────────────────────────────────────────
 async function handleEvent(event) {
+  const lineClient = getLineClient();
+
   if (event.type === 'follow') {
-    // 友だち追加時のウェルカムメッセージ
     await lineClient.replyMessage({
       replyToken: event.replyToken,
       messages: [{
@@ -88,7 +95,6 @@ async function handleEvent(event) {
   const userId = event.source.userId;
   const userText = event.message.text.trim();
 
-  // リセットコマンド
   if (RESET_KEYWORDS.includes(userText)) {
     clearHistory(userId);
     await lineClient.replyMessage({
@@ -109,7 +115,6 @@ async function handleEvent(event) {
     });
   } catch (err) {
     console.error(`Claude APIエラー [userId: ${userId}]:`, err.message);
-    // エラー時はユーザーに通知して履歴をロールバック
     const history = getHistory(userId);
     if (history.length > 0 && history[history.length - 1].role === 'user') {
       history.pop();
@@ -131,8 +136,9 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', model: MODEL });
 });
 
-app.post('/webhook', middleware(lineConfig), (req, res) => {
-  // LINEには即座に200を返す（タイムアウト防止）
+app.post('/webhook', (req, res, next) => {
+  middleware(getLineConfig())(req, res, next);
+}, (req, res) => {
   res.sendStatus(200);
   Promise.all(req.body.events.map(handleEvent)).catch(console.error);
 });
