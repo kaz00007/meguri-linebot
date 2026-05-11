@@ -136,10 +136,16 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', model: MODEL });
 });
 
+// LINE DevelopersコンソールのVerifyボタン用
+app.get('/webhook', (_req, res) => {
+  res.sendStatus(200);
+});
+
+// LINE Webhookイベント受信
 app.post('/webhook', (req, res, next) => {
   middleware(getLineConfig())(req, res, next);
 }, (req, res) => {
-  res.sendStatus(200);
+  res.sendStatus(200); // LINEへ即座に200を返す（タイムアウト防止）
   Promise.all(req.body.events.map(handleEvent)).catch(console.error);
 });
 
